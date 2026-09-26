@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { checkFlow } from './flow-graph';
-import { MAX_CHOICE_OPTIONS, NOT_STATED, OTHER } from './topic-constants';
+import { MAX_CHOICE_OPTIONS, NOT_STATED, OTHER } from './constants';
 
 // Topic files: hand-written JSON flows (see the spec's "Topic model"). loadTopics validates
 // them and returns the valid topics plus plain-English errors for the rest.
@@ -78,58 +78,99 @@ export type TopicError = {
 	message: string;
 };
 
+/**
+ * Validates one topic file on its own. `topic` is the parsed topic whenever the file matches
+ * the topic format, even if it has id or flow errors, so a draft can still be displayed.
+ */
+export function validateTopicFile({ file, source }: TopicFile): {
+	topic?: Topic;
+	errors: TopicError[];
+} {
+	let json: unknown;
+	try {
+		json = JSON.parse(source);
+	} catch (e) {
+		return {
+			errors: [{ file, location: '', message: `Not valid JSON: ${(e as Error).message}` }]
+		};
+	}
+	const toError = (path: KeyPath, message: string): TopicError => ({
+		file,
+		location: describeLocation(json, path),
+		message
+	});
+
+	const parsed = topicSchema.safeParse(json);
+	if (!parsed.success) {
+		// Report only the first problem at each location: after a type mismatch Zod can add
+		// follow-on checks that don't apply (e.g. an array length check run on a string).
+		const errors = new Map<string, TopicError>();
+		for (const issue of parsed.error.issues) {
+			const error = toError(issue.path, describeIssue(json, issue));
+			if (!errors.has(error.location)) errors.set(error.location, error);
+		}
+		return { errors: [...errors.values()] };
+	}
+
+	const topic = parsed.data;
+	const problems = checkTopic(topic);
+	// Graph checks assume unique ids, so skip them until the ids are sorted out.
+	if (problems.length === 0) problems.push(...checkFlow(topic));
+	return { topic, errors: problems.map((problem) => toError(problem.path, problem.message)) };
+}
+
+/**
+ * Validates a topic stored under `id`, such as a D1 row: like a topic file named after the
+ * id, plus the topic's own id must match it. With unique storage ids, that also rules out
+ * two stored topics claiming the same topic id.
+ */
+export function validateStoredTopic({ id, source }: { id: string; source: string }): {
+	topic?: Topic;
+	errors: TopicError[];
+} {
+	const result = validateTopicFile({ file: id, source });
+	if (result.topic && result.topic.id !== id) {
+		result.errors.push({
+			file: id,
+			location: 'id',
+			message: `Must be "${id}", the id this topic is stored under.`
+		});
+	}
+	return result;
+}
+
+/** Validates every topic file, including checks across files, and returns the valid topics. */
 export function loadTopics(files: TopicFile[]): { topics: Topic[]; errors: TopicError[] } {
 	const topics: Topic[] = [];
 	const errors: TopicError[] = [];
 	const fileByTopicId = new Map<string, string>();
-	for (const { file, source } of files) {
-		let json: unknown;
-		try {
-			json = JSON.parse(source);
-		} catch (e) {
-			errors.push({ file, location: '', message: `Not valid JSON: ${(e as Error).message}` });
-			continue;
-		}
-		const report = (path: KeyPath, message: string) =>
-			errors.push({ file, location: describeLocation(json, path), message });
+	for (const topicFile of files) {
+		const { file } = topicFile;
+		const { topic, errors: fileErrors } = validateTopicFile(topicFile);
+		errors.push(...fileErrors);
+		if (!topic) continue;
 
-		const parsed = topicSchema.safeParse(json);
-		if (!parsed.success) {
-			// Report only the first problem at each location: after a type mismatch Zod can add
-			// follow-on checks that don't apply (e.g. an array length check run on a string).
-			const reported = new Set<string>();
-			for (const issue of parsed.error.issues) {
-				const location = describeLocation(json, issue.path);
-				if (reported.has(location)) continue;
-				reported.add(location);
-				report(issue.path, describeIssue(json, issue));
-			}
-			continue;
-		}
-
-		const topic = parsed.data;
-		const problems = checkTopic(topic);
-		// Graph checks assume unique ids, so skip them until the ids are sorted out.
-		if (problems.length === 0) problems.push(...checkFlow(topic));
 		const usedBy = fileByTopicId.get(topic.id);
 		if (usedBy) {
-			problems.push({
-				path: ['id'],
+			errors.push({
+				file,
+				location: 'id',
 				message: `Topic id "${topic.id}" is already used by ${usedBy}.`
 			});
 		}
+		if (fileErrors.length > 0 || usedBy) continue;
+
 		// The topic question offers every valid topic plus "other" as options.
-		if (problems.length === 0 && topics.length + 1 >= MAX_CHOICE_OPTIONS) {
-			problems.push({
-				path: ['id'],
+		if (topics.length + 1 >= MAX_CHOICE_OPTIONS) {
+			errors.push({
+				file,
+				location: 'id',
 				message: `Too many topics: Jev's topic question allows ${MAX_CHOICE_OPTIONS - 1} topics plus "${OTHER}", so this one is left out.`
 			});
+			continue;
 		}
-		if (problems.length === 0) {
-			topics.push(topic);
-			fileByTopicId.set(topic.id, file);
-		}
-		for (const problem of problems) report(problem.path, problem.message);
+		topics.push(topic);
+		fileByTopicId.set(topic.id, file);
 	}
 	return { topics, errors };
 }

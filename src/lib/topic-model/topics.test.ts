@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadTopics } from './topics';
+import { loadTopics, validateStoredTopic, validateTopicFile } from './topics';
 
 // A minimal valid topic: when → send_reply.
 function greeting(overrides: Record<string, unknown> = {}) {
@@ -612,6 +612,50 @@ describe('loadTopics flow graph checks', () => {
 		expect(errors.map((e) => e.location)).toEqual([
 			'step "gate"',
 			'connections[6] (from step "mood")'
+		]);
+	});
+});
+
+describe('validateTopicFile', () => {
+	it('returns the parsed topic alongside its flow errors, so a draft can still be shown', () => {
+		const draft = flow((f) => removeConnection(f, 'gate', 'low'));
+
+		const { topic, errors } = validateTopicFile(file('greeting.json', draft));
+
+		expect(topic?.id).toBe('greeting');
+		expect(errors).toEqual([
+			{ file: 'greeting.json', location: 'step "gate"', message: 'No connection for "low".' }
+		]);
+	});
+
+	it('returns no topic when the file does not match the topic format', () => {
+		const { topic, errors } = validateTopicFile(file('greeting.json', greeting({ examples: [] })));
+
+		expect(topic).toBeUndefined();
+		expect(errors.map((e) => e.location)).toEqual(['examples']);
+	});
+});
+
+describe('validateStoredTopic', () => {
+	it('accepts a stored topic whose id matches the id it is stored under', () => {
+		const { topic, errors } = validateStoredTopic({
+			id: 'greeting',
+			source: JSON.stringify(greeting())
+		});
+
+		expect(errors).toEqual([]);
+		expect(topic?.id).toBe('greeting');
+	});
+
+	it('reports a stored topic whose id does not match the id it is stored under', () => {
+		const { errors } = validateStoredTopic({ id: 'hello', source: JSON.stringify(greeting()) });
+
+		expect(errors).toEqual([
+			{
+				file: 'hello',
+				location: 'id',
+				message: 'Must be "hello", the id this topic is stored under.'
+			}
 		]);
 	});
 });
