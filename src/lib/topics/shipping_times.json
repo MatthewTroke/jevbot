@@ -1,0 +1,129 @@
+{
+	"id": "shipping_times",
+	"name": "Shipping times",
+	"description": "Customer asks how long delivery takes or when their order will arrive.",
+	"examples": [
+		"How long does shipping take?",
+		"When will my order arrive?",
+		"Do you ship to Canada, and how long does it take?",
+		"Is there faster shipping?"
+	],
+	"steps": [
+		{ "id": "start", "type": "when" },
+		{
+			"id": "handoff_rules",
+			"type": "check_rules",
+			"rules": [
+				{ "id": "customer_upset", "condition": "The customer is upset, angry or frustrated." },
+				{
+					"id": "order_missing",
+					"condition": "The customer says their order is lost, missing or never arrived."
+				},
+				{
+					"id": "legal_or_chargeback",
+					"condition": "The customer mentions legal action, a lawyer, a chargeback or disputing the payment with their bank."
+				},
+				{
+					"id": "wants_person",
+					"condition": "The customer asks to talk to a person, a human or a member of staff."
+				}
+			]
+		},
+		{
+			"id": "rules_hand_off",
+			"type": "hand_off",
+			"message": "I'm passing this to our team so a person can help. Someone will follow up with you soon.",
+			"reason": "handoff rule"
+		},
+		{ "id": "topic_gate", "type": "confidence_gate" },
+		{
+			"id": "confirm_topic",
+			"type": "ask_customer",
+			"question": "Just to check, is this about how long shipping takes?",
+			"buttons": ["Yes", "No"],
+			"returnsTo": "confirmed_topic"
+		},
+		{
+			"id": "confirmed_topic",
+			"type": "branch",
+			"question": "Has the customer confirmed that their question is about how long shipping or delivery takes?",
+			"paths": [
+				{
+					"id": "yes",
+					"description": "The customer confirms it is about shipping or delivery times."
+				},
+				{
+					"id": "no",
+					"description": "The customer says it is not about shipping or delivery times."
+				}
+			]
+		},
+		{
+			"id": "not_shipping",
+			"type": "send_reply",
+			"text": "No problem. What can I help you with instead?"
+		},
+		{
+			"id": "low_confidence_hand_off",
+			"type": "hand_off",
+			"message": "I want to make sure you get the right answer, so I'm passing this to our team. Someone will follow up with you soon.",
+			"reason": "low topic confidence"
+		},
+		{
+			"id": "shipping_option",
+			"type": "branch",
+			"question": "Based on the conversation, which kind of shipping is the customer asking about?",
+			"paths": [
+				{
+					"id": "domestic_standard",
+					"description": "Standard delivery to an address within the country."
+				},
+				{
+					"id": "domestic_express",
+					"description": "Faster, express or next-day delivery to an address within the country."
+				},
+				{ "id": "international", "description": "Delivery to an address in another country." }
+			]
+		},
+		{
+			"id": "standard_times",
+			"type": "send_reply",
+			"text": "Standard shipping within [the US] takes [3–5] business days once your order ships. We'll email you a tracking link as soon as it's on its way.",
+			"resolve": true
+		},
+		{
+			"id": "express_times",
+			"type": "send_reply",
+			"text": "Express shipping within [the US] arrives in [1–2] business days. You can choose it at checkout.",
+			"resolve": true
+		},
+		{
+			"id": "international_times",
+			"type": "send_reply",
+			"text": "International orders usually arrive in [7–14] business days, depending on the destination and customs.",
+			"resolve": true
+		},
+		{
+			"id": "ask_destination",
+			"type": "ask_customer",
+			"question": "Happy to help. Where are we shipping to?",
+			"buttons": ["Within the US", "Within the US, as fast as possible", "Another country"],
+			"returnsTo": "shipping_option"
+		}
+	],
+	"connections": [
+		{ "from": "start", "to": "handoff_rules" },
+		{ "from": "handoff_rules", "on": "matched", "to": "rules_hand_off" },
+		{ "from": "handoff_rules", "on": "clear", "to": "topic_gate" },
+		{ "from": "topic_gate", "on": "high", "to": "shipping_option" },
+		{ "from": "topic_gate", "on": "medium", "to": "confirm_topic" },
+		{ "from": "topic_gate", "on": "low", "to": "low_confidence_hand_off" },
+		{ "from": "confirmed_topic", "on": "yes", "to": "shipping_option" },
+		{ "from": "confirmed_topic", "on": "no", "to": "not_shipping" },
+		{ "from": "confirmed_topic", "on": "not_stated", "to": "confirm_topic" },
+		{ "from": "shipping_option", "on": "domestic_standard", "to": "standard_times" },
+		{ "from": "shipping_option", "on": "domestic_express", "to": "express_times" },
+		{ "from": "shipping_option", "on": "international", "to": "international_times" },
+		{ "from": "shipping_option", "on": "not_stated", "to": "ask_destination" }
+	]
+}
