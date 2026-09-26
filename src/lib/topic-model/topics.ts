@@ -139,6 +139,18 @@ export function validateStoredTopic({ id, source }: { id: string; source: string
 	return result;
 }
 
+/**
+ * The id of the step an error is located on, if that step exists. Reads the locations
+ * `describeLocation` writes (`step "id"…`, `connections[i] (from step "id")…`, `steps[i]…`),
+ * so the two must change together; the tests exercise both through real errors.
+ */
+export function errorStepId(error: TopicError, topic: Topic): string | undefined {
+	const named = /^(?:step|connections\[\d+\] \(from step) "([^"]+)"/.exec(error.location);
+	const byPosition = /^steps\[(\d+)\]/.exec(error.location);
+	const id = named ? named[1] : byPosition ? topic.steps[Number(byPosition[1])]?.id : undefined;
+	return topic.steps.some((step) => step.id === id) ? id : undefined;
+}
+
 /** Validates every topic file, including checks across files, and returns the valid topics. */
 export function loadTopics(files: TopicFile[]): { topics: Topic[]; errors: TopicError[] } {
 	const topics: Topic[] = [];

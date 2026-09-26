@@ -14,6 +14,7 @@
   - Parse and validate it with `loadTopics`. It lands as a draft and is never published automatically.
   - If a topic with the same id exists, warn before replacing its draft. The published version is left alone.
   - Invalid JSON or schema errors are shown and nothing is saved.
+  - Duplicate step ids are also rejected on import. The builder can't draw such a draft, and step ids can't be edited in the builder, so it could never be fixed there.
 - **Export** the draft or the published version from the builder, as a `.json` download in the same format as the starter topic files.
 
 **Blocked by:** 04 — Grow and restructure the flow; 05 — Draft and publish

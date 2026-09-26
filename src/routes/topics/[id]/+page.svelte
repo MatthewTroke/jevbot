@@ -1,28 +1,32 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { resolve } from '$app/paths';
 	import TopicStatus from '$lib/components/TopicStatus.svelte';
+	import FlowDiagram from '$lib/flow-diagram/FlowDiagram.svelte';
+	import StepDetails from '$lib/flow-diagram/StepDetails.svelte';
 	import { countLabel } from '$lib/text';
+	import { errorStepId } from '$lib/topic-model/topics';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	type Topic = NonNullable<typeof data.topic>;
-	type Step = Topic['steps'][number];
+	let selectedId = $state<string | undefined>();
 
-	// Colour categories match the flow builder legend in docs/screenshots.
-	type Tone = 'start' | 'jev' | 'bot' | 'person';
-	const stepStyle: Record<Step['type'], { label: string; tone: Tone }> = {
-		when: { label: 'When', tone: 'start' },
-		check_rules: { label: 'Check rules', tone: 'jev' },
-		confidence_gate: { label: 'Confidence gate', tone: 'jev' },
-		branch: { label: 'Branch', tone: 'jev' },
-		send_reply: { label: 'Send reply', tone: 'bot' },
-		ask_customer: { label: 'Ask customer', tone: 'bot' },
-		hand_off: { label: 'Hand off', tone: 'person' }
-	};
-
-	const outgoing = (topic: Topic, stepId: string) =>
-		topic.connections.filter((connection) => connection.from === stepId);
+	const topic = $derived(data.topic);
+	const errorsWithStep = $derived(
+		data.errors.map((error) => ({ error, stepId: topic ? errorStepId(error, topic) : undefined }))
+	);
+	const errorCounts = $derived(
+		errorsWithStep.reduce<Record<string, number>>((counts, { stepId }) => {
+			if (stepId) counts[stepId] = (counts[stepId] ?? 0) + 1;
+			return counts;
+		}, {})
+	);
+	const selectedStep = $derived(topic?.steps.find((step) => step.id === selectedId));
+	// Svelte Flow needs unique node ids, so the diagram waits until step ids are unique.
+	const hasDuplicateStepIds = $derived(
+		!!topic && new Set(topic.steps.map((step) => step.id)).size !== topic.steps.length
+	);
 </script>
 
 <svelte:head>
@@ -44,9 +48,15 @@
 		</h2>
 		<p>These need fixing before this topic can go live.</p>
 		<ul>
-			{#each data.errors as error, i (i)}
+			{#each errorsWithStep as { error, stepId }, i (i)}
 				<li>
-					{#if error.location}<code>{error.location}</code>{/if}
+					{#if stepId && !hasDuplicateStepIds}
+						<button type="button" class="link-button" onclick={() => (selectedId = stepId)}
+							>{error.location}</button
+						>
+					{:else if error.location}
+						<code>{error.location}</code>
+					{/if}
 					<span>{error.message}</span>
 				</li>
 			{/each}
@@ -54,85 +64,49 @@
 	</section>
 {/if}
 
-{#if data.topic}
-	{@const topic = data.topic}
-	<article class="topic">
-		<header>
-			<h2>{topic.name}</h2>
-			<code>{topic.id}</code>
-		</header>
-		<p>{topic.description}</p>
+{#if topic && !hasDuplicateStepIds}
+	<div class="builder">
+		<div class="canvas">
+			{#if browser}
+				<FlowDiagram
+					{topic}
+					{errorCounts}
+					{selectedId}
+					onselect={(stepId) => (selectedId = stepId)}
+				/>
+			{:else}
+				<p class="loading">Drawing the flow…</p>
+			{/if}
+		</div>
 
-		<h3>Example questions</h3>
-		<ul class="examples">
-			{#each topic.examples as example, i (i)}
-				<li>“{example}”</li>
-			{/each}
-		</ul>
-
-		<h3>Flow</h3>
-		<ol class="steps">
-			{#each topic.steps as step (step.id)}
-				{@const edges = outgoing(topic, step.id)}
-				<li class="step {stepStyle[step.type].tone}">
-					<div class="step-head">
-						<span class="badge">{stepStyle[step.type].label}</span>
-						<code>{step.id}</code>
-					</div>
-
-					{#if step.type === 'when'}
-						<p>Starts when the customer's message is about this topic.</p>
-					{:else if step.type === 'check_rules'}
-						<p>Hands off to a person if any of these is true:</p>
-						<ul>
-							{#each step.rules as rule (rule.id)}
-								<li><code>{rule.id}</code> {rule.condition}</li>
-							{/each}
-						</ul>
-					{:else if step.type === 'confidence_gate'}
-						<p>Checks how sure Jev is that the message is about this topic.</p>
-					{:else if step.type === 'branch'}
-						<p class="question">{step.question}</p>
-						<ul>
-							{#each step.paths as path (path.id)}
-								<li><code>{path.id}</code> {path.description}</li>
-							{/each}
-							<li class="auto">
-								<code>not_stated</code> Added automatically for when the conversation doesn't say.
-							</li>
-						</ul>
-					{:else if step.type === 'send_reply'}
-						<blockquote>{step.text}</blockquote>
-						{#if step.resolve}
-							<p class="note">Then marks the conversation resolved.</p>
-						{/if}
-					{:else if step.type === 'ask_customer'}
-						<blockquote>{step.question}</blockquote>
-						<div class="buttons">
-							{#each step.buttons as label, i (i)}
-								<span class="pill">{label}</span>
-							{/each}
-						</div>
-						<p class="note">The next message returns to <code>{step.returnsTo}</code>.</p>
-					{:else if step.type === 'hand_off'}
-						<blockquote>{step.message}</blockquote>
-						<p class="note">Reason tag: {step.reason}</p>
-					{/if}
-
-					{#if edges.length > 0}
-						<ul class="edges">
-							{#each edges as edge, i (i)}
-								<li>{edge.on ?? 'next'} → <code>{edge.to}</code></li>
-							{/each}
-						</ul>
-					{/if}
-				</li>
-			{/each}
-		</ol>
-	</article>
+		<aside class="panel" aria-label={selectedStep ? 'Step details' : 'Topic details'}>
+			{#if selectedStep}
+				<StepDetails
+					step={selectedStep}
+					{topic}
+					errors={errorsWithStep
+						.filter(({ stepId }) => stepId === selectedStep.id)
+						.map(({ error }) => error)}
+					onselect={(stepId) => (selectedId = stepId)}
+				/>
+			{:else}
+				<h2>{topic.name}</h2>
+				<p>{topic.description}</p>
+				<h3>Example questions</h3>
+				<ul>
+					{#each topic.examples as example, i (i)}
+						<li>“{example}”</li>
+					{/each}
+				</ul>
+				<p class="hint">Click a step to see its details.</p>
+			{/if}
+		</aside>
+	</div>
+{:else if topic}
+	<p>This draft has duplicate step ids, so its flow can't be drawn. Fix the errors above.</p>
 {:else}
 	<p>
-		This draft doesn't match the topic format, so its steps can't be shown. Fix the errors above.
+		This draft doesn't match the topic format, so its flow can't be drawn. Fix the errors above.
 	</p>
 {/if}
 
@@ -144,7 +118,7 @@
 
 	.lead {
 		color: var(--muted);
-		margin-bottom: 2rem;
+		margin-bottom: 1.5rem;
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -156,7 +130,7 @@
 		border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
 		border-radius: 0.75rem;
 		padding: 1rem 1.25rem;
-		margin-bottom: 2rem;
+		margin-bottom: 1.5rem;
 	}
 
 	.errors h2 {
@@ -182,142 +156,67 @@
 		display: block;
 	}
 
-	.topic {
+	.builder {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 22rem;
+		gap: 1rem;
+		align-items: stretch;
+	}
+
+	.canvas {
+		height: 72vh;
+		min-height: 28rem;
+	}
+
+	.loading {
+		color: var(--muted);
+	}
+
+	.panel {
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 1rem;
-		padding: 1.5rem;
-		margin-bottom: 2rem;
-	}
-
-	.topic header {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: 0.75rem;
-	}
-
-	.topic h2 {
-		margin: 0;
-		font-size: 1.5rem;
-	}
-
-	.topic header code,
-	.lead code {
-		color: var(--muted);
-	}
-
-	h3 {
-		font-size: 0.8rem;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--muted);
-		margin: 1.5rem 0 0.5rem;
-	}
-
-	.examples {
-		margin: 0;
-		padding-left: 1.25rem;
-	}
-
-	.steps {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 0.75rem;
-	}
-
-	.step {
-		border: 1px solid var(--border);
-		border-left: 6px solid var(--tone);
-		border-radius: 0.75rem;
-		padding: 0.75rem 1rem;
+		padding: 1.25rem;
+		max-height: 72vh;
+		overflow-y: auto;
 		overflow-wrap: anywhere;
 	}
 
-	.step.start {
-		--tone: var(--step-start);
+	.panel h2 {
+		margin: 0 0 0.5rem;
+		font-size: 1.3rem;
 	}
 
-	.step.jev {
-		--tone: var(--step-jev);
-	}
-
-	.step.bot {
-		--tone: var(--step-bot);
-	}
-
-	.step.person {
-		--tone: var(--step-person);
-	}
-
-	.step-head {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-
-	.badge {
-		background: var(--tone);
-		border-radius: 0.35rem;
-		padding: 0.1rem 0.5rem;
+	.panel h3 {
 		font-size: 0.75rem;
-		font-weight: 600;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
+		color: var(--muted);
+		margin: 1.25rem 0 0.5rem;
 	}
 
-	.step p,
-	.step ul,
-	.step blockquote {
-		margin: 0.5rem 0 0;
-	}
-
-	.step ul {
+	.panel ul {
+		margin: 0;
 		padding-left: 1.25rem;
 	}
 
-	.question {
-		font-weight: 600;
-	}
-
-	.auto {
-		color: var(--muted);
-	}
-
-	blockquote {
-		padding-left: 0.75rem;
-		border-left: 2px solid var(--border);
-	}
-
-	.note {
+	.hint {
 		color: var(--muted);
 		font-size: 0.9rem;
+		margin-top: 1.5rem;
 	}
 
-	.buttons {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-top: 0.5rem;
-	}
+	@media (max-width: 52rem) {
+		.builder {
+			grid-template-columns: 1fr;
+		}
 
-	.pill {
-		border: 1px solid var(--border);
-		border-radius: 999px;
-		padding: 0.2rem 0.75rem;
-		font-size: 0.9rem;
-		background: var(--bg);
-	}
+		.canvas {
+			height: 60vh;
+		}
 
-	.edges {
-		list-style: none;
-		padding: 0 !important;
-		color: var(--muted);
-		font-size: 0.9rem;
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem 1rem;
+		.panel {
+			max-height: none;
+		}
 	}
 </style>

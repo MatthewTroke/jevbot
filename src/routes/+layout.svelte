@@ -25,7 +25,7 @@
 	</nav>
 </header>
 
-<main>
+<main class:wide={page.route.id === '/topics/[id]'}>
 	{@render children()}
 </main>
 
@@ -67,5 +67,9 @@
 		max-width: 60rem;
 		margin: 0 auto;
 		padding: 2rem 1rem 4rem;
+	}
+
+	main.wide {
+		max-width: 80rem;
 	}
 </style>
