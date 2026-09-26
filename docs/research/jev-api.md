@@ -66,6 +66,28 @@ const response = await env.AI.run('typesafe/jev', {
 - Billing: Cloudflare Unified Billing (prepaid credits, 5% fee on credit purchases) via AI Gateway; the `default` gateway is created automatically if none is specified. Price is $0.042 per million input tokens and output tokens are free.
 - Rate limits: none documented for Jev specifically. Generic Text Generation models get 300 requests per minute.
 
+## Observed behaviour (ticket 01 spike, 2026-09-26)
+
+- **The binding wraps the output in a run envelope.** The model page shows the bare output, but a real `env.AI.run('typesafe/jev', …)` returned:
+
+  ```json
+  {
+  	"state": "Completed",
+  	"result": {
+  		"model": "jev-1.13.0",
+  		"answers": { "…": "…" },
+  		"usage": { "input_tokens": 383, "output_tokens": 41 }
+  	},
+  	"gatewayMetadata": { "keySource": "Unified" }
+  }
+  ```
+
+  AI Gateway documents a similar envelope for background runs (`id`, `state`, `result`, `error`) but doesn't list `state` values (https://developers.cloudflare.com/ai-gateway/usage/rest-api/). The adapter accepts the envelope or the bare shape, and treats any `state` other than `"Completed"` as a failed run.
+
+- **Gateway:** the adapter passes `{ gateway: { id: 'default' } }`, as Cloudflare's third-party binding example does. The `default` gateway is created on the first successful authenticated request.
+- **Credits:** with no Unified Billing credits, the binding throws `2021: Insufficient AI Gateway credits`. Top up in the dashboard: AI → AI Gateway → Credits Available → Manage → Top-up credits. Credits belong to the account Wrangler is logged into (`wrangler whoami`).
+- **Cost and speed:** one Choice with 3 options on a short message used 383 input and 41 output tokens, with about 0.9–1 s latency end to end.
+
 ## Limits and behaviour (TypeSafe docs)
 
 - Max **255 options per Choice** (TypeSafe docs; Cloudflare doesn't state it — enforce it anyway).

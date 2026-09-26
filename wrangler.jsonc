@@ -8,6 +8,10 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"ai": {
+		"binding": "AI",
+		"remote": true
+	},
 	"workers_dev": true,
 	"preview_urls": true
 }
