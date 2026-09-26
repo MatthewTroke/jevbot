@@ -1,4 +1,4 @@
-import { MAX_CHOICE_OPTIONS, NOT_STATED } from './topic-constants';
+import { MAX_CHOICE_OPTIONS, NOT_STATED } from './constants';
 import type { Problem, Step, Topic } from './topics';
 
 // Checks that a topic's flow can be walked safely: one entry, every outcome connected, no

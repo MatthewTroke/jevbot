@@ -23,12 +23,29 @@
 
 **Blocked by:** v1 ticket 03 — Flow graph validation (`.scratch/jevbot-v1/issues/03-flow-graph-validation.md`)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Local D1 migrations apply cleanly from scratch.
-- [ ] On first load of a fresh local database, both starter topics appear on `/topics` as `published` with 0 errors.
-- [ ] After deleting a starter topic's row directly in local D1 and reloading, it doesn't come back.
-- [ ] Editing a topic's draft JSON directly in local D1 shows `unpublished changes` on the list, and any validation errors appear on `/topics/[id]` with the topic id as the file name.
-- [ ] The topic model imports nothing server-only, so the browser can use it.
-- [ ] Existing `loadTopics` tests still pass unchanged, apart from import paths.
-- [ ] `npm run check`, `npm run lint` and `npm test` pass.
+- [x] Local D1 migrations apply cleanly from scratch.
+- [x] On first load of a fresh local database, both starter topics appear on `/topics` as `published` with 0 errors.
+- [x] After deleting a starter topic's row directly in local D1 and reloading, it doesn't come back.
+- [x] Editing a topic's draft JSON directly in local D1 shows `unpublished changes` on the list, and any validation errors appear on `/topics/[id]` with the topic id as the file name.
+- [x] The topic model imports nothing server-only, so the browser can use it.
+- [x] Existing `loadTopics` tests still pass unchanged, apart from import paths.
+- [x] `npm run check`, `npm run lint` and `npm test` pass.
+
+## Comments
+
+**2026-09-26, implementation notes:**
+
+- **D1:**
+  - The binding is `DB` and the database is `jevbot`, with migrations in `migrations/`.
+  - `npm run db:migrate` applies them locally.
+  - There's no `database_id`. Wrangler would auto-create the remote database on the first deploy; the README warns about that and gives the `--remote` migration command. Nothing remote was created.
+- **Topic model:** now in `src/lib/topic-model/`, which is browser-safe:
+  - `topics.ts` holds `loadTopics`, `validateTopicFile` and the new `validateStoredTopic`.
+  - `flow-graph.ts`, `constants.ts`, and `status.ts` (the draft / published status rule).
+- **Validating stored topics.** `validateStoredTopic({ id, source })` validates like a file named after the id, and also requires the topic JSON's `id` to match. Row ids are unique, so that rules out duplicate topic ids too. The builder's publish (ticket 05) still runs `loadTopics` with the other published topics for the 254-topic limit.
+- **Showing drafts with errors.** `validateTopicFile` returns the parsed topic even when it has id or flow errors, so pages (and ticket 02's diagram) can show a draft that's still being fixed.
+- **Starter topics** are stored as their files' original text, as both draft and published, once ever. The `starter_topics_loaded` flag lives in `settings`. The server hook triggers the load per Worker instance, and it's idempotent.
+- **Store module.** `src/lib/server/topic-store.ts` has `createTopicStore(db)` with `loadStarterTopics`, `list` and `get`, plus the `topicStoreFor(platform)` and `validateDraft(record)` helpers. Later tickets add the write operations here.
+- **Pages.** `/topics` is the list: name, status badge and error count. `/topics/[id]` is the read-only step view of the draft, with errors headed by the topic id.
