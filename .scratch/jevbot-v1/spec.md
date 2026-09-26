@@ -293,7 +293,7 @@ Created with Wrangler D1 migrations and accessed with prepared statements (no OR
 
 ## Out of Scope
 
-- A visual flow builder, publishing or drafting topics, the "See what Jev gets" page and the Settings page. Presets are switched in the config file.
+- A visual flow builder, publishing or drafting topics, the "See what Jev gets" page and the Settings page. These are no longer out of scope overall: they moved to their own spec, `.scratch/flow-builder/spec.md`, which is built right after ticket 03 and changes how topics are stored (D1 instead of bundled files).
 - Documents, uploads, "Quote from docs", source citations and anything else document-related in the screenshots.
 - Post-reply "That helped / Talk to a person" buttons and "Then: offer a person" on send_reply. The only "Talk to a person" button is on the fallback reply.
 - Any LLM, including drafting topics or generating replies.

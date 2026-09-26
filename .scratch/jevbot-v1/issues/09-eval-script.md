@@ -9,7 +9,7 @@
   - optionally, earlier transcript and a waiting step, for multi-turn cases;
   - the expected topic (or `other`);
   - the expected path, as the sequence of step ids or just the final step.
-- It runs in Node and gets the real Workers AI binding through Wrangler's platform proxy. It calls the same `decideTurn` and Jev adapter the app uses, with the real bundled topics and config. It doesn't touch D1.
+- It runs in Node and gets the real Workers AI binding through Wrangler's platform proxy. It calls the same `decideTurn` and Jev adapter the app uses. By default it uses the published topics from the local D1, read through the same platform proxy, and the effective settings. A `--topics <folder>` option runs against exported topic JSON files instead. It doesn't write to D1.
 - A `--preset` option picks Careful, Balanced or Confident; the default is the active preset.
 - Output:
   - For each case: pass or fail, and on failure the expected and actual topic and path, with Jev's topic answer, the branch answers used and their confidences.
@@ -26,7 +26,7 @@
   - a topic switch while waiting.
 - The script is not part of `npm test`, because it costs credits and needs `wrangler login`. Its usage is documented in the README.
 
-**Blocked by:** 06 — Multi-turn: waiting on ask_customer
+**Blocked by:** 06 — Multi-turn: waiting on ask_customer; flow-builder 01 — Topics stored in D1, listed on /topics (`.scratch/flow-builder/issues/01-topics-stored-in-d1.md`)
 
 **Status:** ready-for-agent
 
