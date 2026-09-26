@@ -21,12 +21,26 @@
 
 **Blocked by:** 02 — Topic files load and show on /topics
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each rule above has a unit test with a minimal invalid fixture. The test asserts the error names the file, the step and the problem in plain words.
-- [ ] A topic containing the one allowed loop (ask_customer → its branch → `not_stated` → the same ask_customer) passes validation.
-- [ ] Both example topics still load with zero errors.
-- [ ] A topic that fails graph validation is excluded from matching while other topics still load.
-- [ ] The topic-Choice limit is checked across all topics together, not per file.
-- [ ] Temporarily adding a topic with a dead end or a loop shows clear errors on `/topics`.
-- [ ] `npm run check`, `npm run lint` and `npm test` pass.
+- [x] Each rule above has a unit test with a minimal invalid fixture. The test asserts the error names the file, the step and the problem in plain words.
+- [x] A topic containing the one allowed loop (ask_customer → its branch → `not_stated` → the same ask_customer) passes validation.
+- [x] Both example topics still load with zero errors.
+- [x] A topic that fails graph validation is excluded from matching while other topics still load.
+- [x] The topic-Choice limit is checked across all topics together, not per file.
+- [x] Temporarily adding a topic with a dead end or a loop shows clear errors on `/topics`.
+- [x] `npm run check`, `npm run lint` and `npm test` pass.
+
+## Comments
+
+**2026-09-26, implementation notes:**
+
+- **Where it lives:** the graph checks are in `src/lib/server/flow-graph.ts` (`checkFlow`), and `loadTopics` runs them once a topic's schema and ids are valid. Shared constants (`OTHER`, `NOT_STATED`, `MAX_CHOICE_OPTIONS`) are in a dependency-free `topic-constants.ts`.
+- **Exported for later tickets:** `outcomesOf(step)` gives the outcomes a step must connect, in order. It returns an `Outcome[]`, where `undefined` is the `when` step's unlabelled outcome. The walker in ticket 04 and the builder's "+" slots will use it.
+- **Check order:**
+  1. Per-step and per-connection checks.
+  2. Loop checks, which always run, since a missing arrow can't create a loop, and only follow connections that are valid for their step.
+  3. Reachability, which only runs when nothing else is wrong. Otherwise one missing arrow would also flag every step after it as unreachable.
+- **Error locations:** connection errors name the step the connection leaves from, e.g. `connections[7] (from step "mood").to`, so the builder can highlight the node.
+- **Loops through a customer question:** a loop that goes back through an ask_customer's `returnsTo` is allowed, e.g. gate → medium → ask → confirm branch → "no" → gate. That matches "acyclic once ask_customer return edges are removed", and the repeat-question cap in ticket 06 stops it repeating across turns.
+- **254-topic limit:** topics past the limit are rejected in the order given. Builder ticket 05 notes that publishing must pass the draft last, so the draft is the one rejected.

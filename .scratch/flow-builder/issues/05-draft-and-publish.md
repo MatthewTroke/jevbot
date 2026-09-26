@@ -7,6 +7,7 @@
 - **Publish.**
   - The button is enabled only when the draft has no validation errors.
   - The server re-validates the draft with `loadTopics` together with every other published topic. That covers duplicate topic ids, the 255-option topic limit and the graph rules.
+  - Pass the other published topics first and the draft last. `loadTopics` rejects topics past the 254-topic limit in the order given, so this way the draft is the one rejected, never a topic that's already live.
   - Only if this topic has no errors is the draft copied to the published version and the published timestamp set. Otherwise the errors are returned and shown.
 - **Discard changes.** Replace the draft with the published version, after confirming. It's only available when there are unpublished changes.
 - **Unpublish.** Set the published version to null. The topic stays as a draft only.
