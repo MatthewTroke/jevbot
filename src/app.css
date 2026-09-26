@@ -1,0 +1,60 @@
+/* Palette follows the reference screenshots in docs/screenshots. */
+:root {
+	--bg: #f4f0e8;
+	--surface: #fffdf9;
+	--border: #e3ddd2;
+	--text: #1d1b18;
+	--muted: #6b655c;
+	--accent: #0f5c55;
+	--accent-soft: #dcebe7;
+	--danger: #9b2c22;
+	--danger-soft: #f6dcd7;
+
+	/* Step categories, as in the flow builder legend. */
+	--step-start: #d3e6e2;
+	--step-jev: #f3dfc4;
+	--step-bot: #e8e3da;
+	--step-person: #f4d3cd;
+
+	--font-serif: Georgia, 'Times New Roman', serif;
+
+	font-family:
+		system-ui,
+		-apple-system,
+		'Segoe UI',
+		sans-serif;
+	color: var(--text);
+	background: var(--bg);
+	line-height: 1.5;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+}
+
+h1,
+h2,
+h3 {
+	line-height: 1.2;
+}
+
+h1 {
+	font-family: var(--font-serif);
+	font-weight: 400;
+	font-size: 2.5rem;
+	margin: 0 0 0.5rem;
+}
+
+a {
+	color: var(--accent);
+}
+
+code {
+	font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+	font-size: 0.9em;
+}
