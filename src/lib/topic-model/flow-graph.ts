@@ -257,6 +257,18 @@ export function outcomesOf(step: Step): Outcome[] {
 	}
 }
 
+/**
+ * A step's outcomes with no connection to an existing step, each listed once. The builder
+ * draws these as "+" slots.
+ */
+export function openOutcomes(topic: Topic, step: Step): Outcome[] {
+	const stepIds = new Set(topic.steps.map((s) => s.id));
+	const connected = new Set(
+		topic.connections.filter((c) => c.from === step.id && stepIds.has(c.to)).map((c) => c.on)
+	);
+	return [...new Set(outcomesOf(step))].filter((outcome) => !connected.has(outcome));
+}
+
 function describeUnknownOutcome(step: Step, on: Outcome, outcomes: Outcome[]): string {
 	if (step.type === 'when') {
 		return `"${step.id}" connects to the next step without a label. Remove "on".`;

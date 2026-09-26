@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { loadTopics, validateStoredTopic, validateTopicFile } from './topics';
+import { openOutcomes } from './flow-graph';
+import { errorStepId, loadTopics, validateStoredTopic, validateTopicFile } from './topics';
 
 // A minimal valid topic: when → send_reply.
 function greeting(overrides: Record<string, unknown> = {}) {
@@ -657,5 +658,84 @@ describe('validateStoredTopic', () => {
 				message: 'Must be "hello", the id this topic is stored under.'
 			}
 		]);
+	});
+});
+
+describe('errorStepId', () => {
+	const stepOfEachError = (edit: (f: Flow) => void) => {
+		const { topic, errors } = validateTopicFile(file('greeting.json', flow(edit)));
+		return errors.map((error) => errorStepId(error, topic!));
+	};
+
+	it('finds the step an error is located on', () => {
+		expect(stepOfEachError((f) => removeConnection(f, 'gate', 'low'))).toEqual(['gate']);
+	});
+
+	it('finds the step a connection error leaves from', () => {
+		expect(
+			stepOfEachError((f) => f.connections.push({ from: 'gate', on: 'maybe', to: 'aw' }))
+		).toEqual(['gate']);
+	});
+
+	it('finds a step named by position when its id is not unique', () => {
+		const { topic, errors } = validateTopicFile(
+			file('greeting.json', withSteps({ id: 'start', type: 'send_reply', text: 'Hi' }))
+		);
+
+		expect(errors.map((error) => errorStepId(error, topic!))).toEqual(['start']);
+	});
+
+	it('returns undefined for a connection from a step that does not exist', () => {
+		expect(
+			stepOfEachError((f) => f.connections.push({ from: 'mod', on: 'happy', to: 'yay' }))
+		).toEqual([undefined]);
+	});
+
+	it('returns undefined for errors about the topic as a whole', () => {
+		const { topic, errors } = validateTopicFile(
+			file(
+				'greeting.json',
+				flow((f) => {
+					f.steps = f.steps.filter((s) => s.type !== 'when');
+					removeConnection(f, 'start');
+				})
+			)
+		);
+
+		expect(errors.map((error) => errorStepId(error, topic!))).toEqual([undefined]);
+	});
+});
+
+describe('openOutcomes', () => {
+	const openOutcomesOf = (stepId: string, edit: (f: Flow) => void) => {
+		const { topic } = validateTopicFile(file('greeting.json', flow(edit)));
+		return openOutcomes(
+			topic!,
+			topic!.steps.find((step) => step.id === stepId)!
+		);
+	};
+
+	it('lists the outcomes with nothing connected', () => {
+		expect(openOutcomesOf('gate', (f) => removeConnection(f, 'gate', 'low'))).toEqual(['low']);
+	});
+
+	it('treats a connection to a step that does not exist as open', () => {
+		expect(
+			openOutcomesOf('mood', (f) => {
+				connectionOf(f, 'mood', 'sad').to = 'nowhere';
+			})
+		).toEqual(['sad']);
+	});
+
+	it('lists a repeated path id once', () => {
+		expect(
+			openOutcomesOf('mood', (f) => {
+				stepById(f, 'mood').paths = [
+					{ id: 'happy', description: 'Happy' },
+					{ id: 'happy', description: 'Glad' }
+				];
+				f.connections = f.connections.filter((c) => c.from !== 'mood');
+			})
+		).toEqual(['happy', 'not_stated']);
 	});
 });
