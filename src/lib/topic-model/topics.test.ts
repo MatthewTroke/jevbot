@@ -629,11 +629,46 @@ describe('validateTopicFile', () => {
 		]);
 	});
 
-	it('returns no topic when the file does not match the topic format', () => {
-		const { topic, errors } = validateTopicFile(file('greeting.json', greeting({ examples: [] })));
+	it('returns no topic when the file does not have the shape of a topic', () => {
+		const { topic, errors } = validateTopicFile(
+			file('greeting.json', withSteps({ id: 'reply', type: 'sendreply', text: 'Hi' }))
+		);
 
 		expect(topic).toBeUndefined();
-		expect(errors.map((e) => e.location)).toEqual(['examples']);
+		expect(errors.map((e) => e.location)).toEqual(['step "reply".type']);
+	});
+
+	it('still returns a draft whose only problems are content, so it can keep being edited', () => {
+		const draft = flow((f) => {
+			stepById(f, 'rules').rules = [{ id: 'rule_1', condition: '' }];
+			stepById(f, 'mood').paths = [
+				{ id: 'happy', description: '' },
+				{ id: 'sad', description: 'Customer is sad' }
+			];
+		});
+
+		const { topic, errors } = validateTopicFile(
+			file('greeting.json', { ...draft, examples: ['hi', 'hello'] })
+		);
+
+		expect(topic?.id).toBe('greeting');
+		expect(errors).toEqual([
+			{
+				file: 'greeting.json',
+				location: 'examples',
+				message: 'Needs 3 to 5 example questions (found 2).'
+			},
+			{
+				file: 'greeting.json',
+				location: 'step "rules".rules[0].condition',
+				message: 'Must not be empty.'
+			},
+			{
+				file: 'greeting.json',
+				location: 'step "mood".paths[0].description',
+				message: 'Must not be empty.'
+			}
+		]);
 	});
 });
 

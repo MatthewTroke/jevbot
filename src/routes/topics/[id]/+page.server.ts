@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ params, platform }) => {
 	return {
 		id: record.id,
 		name: topic?.name ?? record.id,
-		status: record.status,
+		published: record.published,
 		updatedAt: record.updatedAt,
 		topic: topic ?? null,
 		errors

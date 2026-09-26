@@ -75,6 +75,17 @@ export function createTopicStore(db: D1Database) {
 			return results.map(toRecord);
 		},
 
+		/** Saves a topic's draft JSON. Returns the new updated time, or null if there's no such topic. */
+		async saveDraft(id: string, draft: string): Promise<string | null> {
+			const row = await db
+				.prepare(
+					`UPDATE topics SET draft = ?, updated_at = ${SQL_NOW} WHERE id = ? RETURNING updated_at`
+				)
+				.bind(draft, id)
+				.first<{ updated_at: string }>();
+			return row?.updated_at ?? null;
+		},
+
 		async get(id: string): Promise<TopicRecord | null> {
 			const row = await db
 				.prepare(`SELECT ${TOPIC_COLUMNS} FROM topics WHERE id = ?`)
