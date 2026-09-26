@@ -1,11 +1,10 @@
 import { z } from 'zod';
+import { checkFlow } from './flow-graph';
+import { MAX_CHOICE_OPTIONS, NOT_STATED, OTHER } from './topic-constants';
 
 // Topic files: hand-written JSON flows (see the spec's "Topic model"). loadTopics validates
 // them and returns the valid topics plus plain-English errors for the rest.
 
-/** Added by the app itself: `other` to the topic question, `not_stated` to every branch. */
-export const OTHER = 'other';
-export const NOT_STATED = 'not_stated';
 const RESERVED_IDS: readonly string[] = [OTHER, NOT_STATED];
 
 const idSchema = z
@@ -110,11 +109,20 @@ export function loadTopics(files: TopicFile[]): { topics: Topic[]; errors: Topic
 
 		const topic = parsed.data;
 		const problems = checkTopic(topic);
+		// Graph checks assume unique ids, so skip them until the ids are sorted out.
+		if (problems.length === 0) problems.push(...checkFlow(topic));
 		const usedBy = fileByTopicId.get(topic.id);
 		if (usedBy) {
 			problems.push({
 				path: ['id'],
 				message: `Topic id "${topic.id}" is already used by ${usedBy}.`
+			});
+		}
+		// The topic question offers every valid topic plus "other" as options.
+		if (problems.length === 0 && topics.length + 1 >= MAX_CHOICE_OPTIONS) {
+			problems.push({
+				path: ['id'],
+				message: `Too many topics: Jev's topic question allows ${MAX_CHOICE_OPTIONS - 1} topics plus "${OTHER}", so this one is left out.`
 			});
 		}
 		if (problems.length === 0) {
@@ -127,7 +135,8 @@ export function loadTopics(files: TopicFile[]): { topics: Topic[]; errors: Topic
 }
 
 type KeyPath = readonly PropertyKey[];
-type Problem = { path: KeyPath; message: string };
+/** A problem found in a parsed topic, located by key path within the topic JSON. */
+export type Problem = { path: KeyPath; message: string };
 
 /** Checks within one topic that the schema can't express. */
 function checkTopic(topic: Topic): Problem[] {
@@ -196,7 +205,8 @@ function valueAt(json: unknown, path: KeyPath): unknown {
 
 /**
  * Renders a key path like `step "reply".text`. Steps are named by id when the id is unique
- * in the file, and by position (`steps[2]`) otherwise.
+ * in the file, and by position (`steps[2]`) otherwise. Connections name the step they leave
+ * from, e.g. `connections[7] (from step "mood").to`.
  */
 function describeLocation(json: unknown, path: KeyPath): string {
 	const steps = valueAt(json, ['steps']);
@@ -209,8 +219,16 @@ function describeLocation(json: unknown, path: KeyPath): string {
 		const key = path[i];
 		const next = path[i + 1];
 		const stepId = key === 'steps' && typeof next === 'number' ? stepIds[next] : undefined;
+		const connectionIndex = key === 'connections' && typeof next === 'number' ? next : undefined;
+		const from =
+			connectionIndex === undefined
+				? undefined
+				: valueAt(json, ['connections', connectionIndex, 'from']);
 		if (isUniqueStepId(stepId)) {
 			location += `${location ? '.' : ''}step "${stepId}"`;
+			i++;
+		} else if (typeof from === 'string') {
+			location += `${location ? '.' : ''}connections[${connectionIndex}] (from step "${from}")`;
 			i++;
 		} else if (typeof key === 'number') {
 			location += `[${key}]`;
