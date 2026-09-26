@@ -23,6 +23,7 @@ This ticket covers fresh messages only. Resuming a waiting step, and the rules f
   - A Choice for every branch in every topic, with `not_stated` added using a standard description.
   - A Noul for every handoff rule in every topic and for the fallback rules. Each rule's condition is wrapped as a yes/no question about the conversation.
   - Namespaced question keys, lowercase types, and a structured state holding the recent transcript (the bot's own messages included) and the latest message.
+  - Export the question building (the Jev request for a set of topics and a conversation) as well as using it inside `decideTurn`. The flow builder's "See what Jev gets" page (`.scratch/flow-builder/issues/08-see-what-jev-gets.md`) reuses it. Tests still go through `decideTurn`.
 - **Walking the flow:**
   - `check_rules`: `matched` if any of its rules is at or above `rule`.
   - `confidence_gate`: compares the topic answer's `confidence` with `act` (high) and `confirm` (medium). Below `confirm` is low.
