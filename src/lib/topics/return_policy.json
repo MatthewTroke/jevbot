@@ -1,0 +1,119 @@
+{
+	"id": "return_policy",
+	"name": "Return policy",
+	"description": "Customer wants to return or send back an item they bought.",
+	"examples": [
+		"Can I return something I bought?",
+		"can i send back shoes i bought last week?",
+		"How do I get a refund for my order?",
+		"I want to return this, it doesn't fit"
+	],
+	"steps": [
+		{ "id": "start", "type": "when" },
+		{
+			"id": "handoff_rules",
+			"type": "check_rules",
+			"rules": [
+				{ "id": "customer_upset", "condition": "The customer is upset, angry or frustrated." },
+				{
+					"id": "damaged_item",
+					"condition": "The customer says the item arrived damaged, broken, faulty or wrong."
+				},
+				{
+					"id": "legal_or_chargeback",
+					"condition": "The customer mentions legal action, a lawyer, a chargeback or disputing the payment with their bank."
+				},
+				{
+					"id": "wants_person",
+					"condition": "The customer asks to talk to a person, a human or a member of staff."
+				}
+			]
+		},
+		{
+			"id": "rules_hand_off",
+			"type": "hand_off",
+			"message": "I'm passing this to our team so a person can help. Someone will follow up with you soon.",
+			"reason": "handoff rule"
+		},
+		{ "id": "topic_gate", "type": "confidence_gate" },
+		{
+			"id": "confirm_topic",
+			"type": "ask_customer",
+			"question": "Just to check, is this about returning an item?",
+			"buttons": ["Yes", "No"],
+			"returnsTo": "confirmed_topic"
+		},
+		{
+			"id": "confirmed_topic",
+			"type": "branch",
+			"question": "Has the customer confirmed that their question is about returning an item they bought?",
+			"paths": [
+				{ "id": "yes", "description": "The customer confirms it is about returning an item." },
+				{ "id": "no", "description": "The customer says it is not about returning an item." }
+			]
+		},
+		{
+			"id": "not_a_return",
+			"type": "send_reply",
+			"text": "No problem. What can I help you with instead?"
+		},
+		{
+			"id": "low_confidence_hand_off",
+			"type": "hand_off",
+			"message": "I want to make sure you get the right answer, so I'm passing this to our team. Someone will follow up with you soon.",
+			"reason": "low topic confidence"
+		},
+		{
+			"id": "item_condition",
+			"type": "branch",
+			"question": "Based on the conversation, what condition is the item the customer wants to return in?",
+			"paths": [
+				{
+					"id": "unworn",
+					"description": "Not worn or used, still in its original condition or packaging."
+				},
+				{ "id": "worn", "description": "Worn, used or washed." },
+				{ "id": "damaged", "description": "Arrived broken, faulty, damaged or wrong." }
+			]
+		},
+		{
+			"id": "return_steps",
+			"type": "send_reply",
+			"text": "You can return any unworn item within [30] days for a full refund. Start your return at [yourstore.com/returns] and we'll email you a prepaid label.",
+			"resolve": true
+		},
+		{
+			"id": "worn_items",
+			"type": "send_reply",
+			"text": "Sorry, worn or used items can't be returned. If you think something is wrong with the item, ask to talk to a person and we'll take a look."
+		},
+		{
+			"id": "damaged_hand_off",
+			"type": "hand_off",
+			"message": "Sorry your item arrived damaged. I'm passing this to our team and someone will follow up to sort it out.",
+			"reason": "damaged item"
+		},
+		{
+			"id": "ask_condition",
+			"type": "ask_customer",
+			"question": "Happy to help with that. Has the item been worn or used?",
+			"buttons": ["No, it's unworn", "Yes, I've worn it", "It arrived damaged"],
+			"returnsTo": "item_condition"
+		}
+	],
+	"connections": [
+		{ "from": "start", "to": "handoff_rules" },
+		{ "from": "handoff_rules", "on": "matched", "to": "rules_hand_off" },
+		{ "from": "handoff_rules", "on": "clear", "to": "topic_gate" },
+		{ "from": "topic_gate", "on": "high", "to": "item_condition" },
+		{ "from": "topic_gate", "on": "medium", "to": "confirm_topic" },
+		{ "from": "topic_gate", "on": "low", "to": "low_confidence_hand_off" },
+		{ "from": "confirmed_topic", "on": "yes", "to": "item_condition" },
+		{ "from": "confirmed_topic", "on": "no", "to": "not_a_return" },
+		{ "from": "confirmed_topic", "on": "not_stated", "to": "confirm_topic" },
+		{ "from": "item_condition", "on": "unworn", "to": "return_steps" },
+		{ "from": "item_condition", "on": "worn", "to": "worn_items" },
+		{ "from": "item_condition", "on": "damaged", "to": "damaged_hand_off" },
+		{ "from": "item_condition", "on": "not_stated", "to": "ask_condition" }
+	]
+}
