@@ -5,7 +5,7 @@
 **What to build:** A flow builder can start a topic from scratch, and move topics in and out as JSON files.
 
 - **"+ New topic"** on `/topics`.
-  - Ask for a name and suggest a snake_case topic id from it. The id can be edited until the topic is first published, and is locked after that. Enforce this in `applyEdit`.
+  - Ask for a name and suggest a snake_case topic id from it. The id can be edited until the topic is first published, and is locked after that. Enforce this in `applyEdit`. Changing the id also re-keys the D1 row, so it needs its own server operation: the draft autosave endpoint from ticket 03 deliberately refuses a draft whose id differs from its row.
   - Create the draft from the template:
     - An entry step leads to check rules with three default rules (customer upset, legal action or chargeback, asks for a person). A match goes to a hand-off step.
     - A clear result goes to a confidence gate. Low goes to a hand-off step; high and medium are open "+" slots.

@@ -7,64 +7,83 @@ import { MAX_CHOICE_OPTIONS, NOT_STATED, OTHER } from './constants';
 
 const RESERVED_IDS: readonly string[] = [OTHER, NOT_STATED];
 
-const idSchema = z
-	.string()
-	.regex(
-		/^[a-z][a-z0-9_]*$/,
-		'Must be snake_case: lowercase letters, digits and underscores, starting with a letter (e.g. return_policy).'
-	);
-const textSchema = z.string().min(1);
-
-const stepSchema = z.discriminatedUnion('type', [
-	z.strictObject({ id: idSchema, type: z.literal('when') }),
-	z.strictObject({
-		id: idSchema,
-		type: z.literal('check_rules'),
-		rules: z.array(z.strictObject({ id: idSchema, condition: textSchema })).min(1)
-	}),
-	z.strictObject({ id: idSchema, type: z.literal('confidence_gate') }),
-	z.strictObject({
-		id: idSchema,
-		type: z.literal('branch'),
-		question: textSchema,
-		paths: z.array(z.strictObject({ id: idSchema, description: textSchema })).min(1)
-	}),
-	z.strictObject({
-		id: idSchema,
-		type: z.literal('send_reply'),
-		text: textSchema,
-		resolve: z.boolean().default(false)
-	}),
-	z.strictObject({
-		id: idSchema,
-		type: z.literal('ask_customer'),
-		question: textSchema,
-		buttons: z.array(textSchema).min(1),
-		returnsTo: idSchema
-	}),
-	z.strictObject({
-		id: idSchema,
-		type: z.literal('hand_off'),
-		message: textSchema,
-		reason: textSchema
-	})
-]);
-
-const stepTypes = stepSchema.options.map((option) => option.shape.type.value);
-
 const exampleCountError = {
 	error: (issue: { input?: unknown }) =>
 		`Needs 3 to 5 example questions (found ${(issue.input as unknown[]).length}).`
 };
 
-const topicSchema = z.strictObject({
-	id: idSchema,
-	name: textSchema,
-	description: textSchema.regex(/^[^\r\n]*$/, 'Must be a single line.'),
-	examples: z.array(textSchema).min(3, exampleCountError).max(5, exampleCountError),
-	steps: z.array(stepSchema).min(1),
-	connections: z.array(z.strictObject({ from: idSchema, to: idSchema, on: z.string().optional() }))
-});
+/**
+ * The topic format. `strict` adds the content rules (non-empty text, snake_case ids, list
+ * lengths, a one-line description). Without them only the shape is checked, which is enough
+ * to keep editing a draft that's still being filled in.
+ */
+function topicSchemas(strict: boolean) {
+	const idSchema = strict
+		? z
+				.string()
+				.regex(
+					/^[a-z][a-z0-9_]*$/,
+					'Must be snake_case: lowercase letters, digits and underscores, starting with a letter (e.g. return_policy).'
+				)
+		: z.string();
+	const textSchema = strict ? z.string().min(1) : z.string();
+	const nonEmpty = <T extends z.ZodType>(item: T) =>
+		strict ? z.array(item).min(1) : z.array(item);
+
+	const step = z.discriminatedUnion('type', [
+		z.strictObject({ id: idSchema, type: z.literal('when') }),
+		z.strictObject({
+			id: idSchema,
+			type: z.literal('check_rules'),
+			rules: nonEmpty(z.strictObject({ id: idSchema, condition: textSchema }))
+		}),
+		z.strictObject({ id: idSchema, type: z.literal('confidence_gate') }),
+		z.strictObject({
+			id: idSchema,
+			type: z.literal('branch'),
+			question: textSchema,
+			paths: nonEmpty(z.strictObject({ id: idSchema, description: textSchema }))
+		}),
+		z.strictObject({
+			id: idSchema,
+			type: z.literal('send_reply'),
+			text: textSchema,
+			resolve: z.boolean().default(false)
+		}),
+		z.strictObject({
+			id: idSchema,
+			type: z.literal('ask_customer'),
+			question: textSchema,
+			buttons: nonEmpty(textSchema),
+			returnsTo: idSchema
+		}),
+		z.strictObject({
+			id: idSchema,
+			type: z.literal('hand_off'),
+			message: textSchema,
+			reason: textSchema
+		})
+	]);
+
+	const topic = z.strictObject({
+		id: idSchema,
+		name: textSchema,
+		description: strict ? textSchema.regex(/^[^\r\n]*$/, 'Must be a single line.') : textSchema,
+		examples: strict
+			? z.array(textSchema).min(3, exampleCountError).max(5, exampleCountError)
+			: z.array(textSchema),
+		steps: nonEmpty(step),
+		connections: z.array(
+			z.strictObject({ from: idSchema, to: idSchema, on: z.string().optional() })
+		)
+	});
+	return { step, topic };
+}
+
+const { step: stepSchema, topic: topicSchema } = topicSchemas(true);
+const { topic: draftShapeSchema } = topicSchemas(false);
+
+const stepTypes = stepSchema.options.map((option) => option.shape.type.value);
 
 export type Topic = z.infer<typeof topicSchema>;
 export type Step = Topic['steps'][number];
@@ -78,9 +97,32 @@ export type TopicError = {
 	message: string;
 };
 
+/** The `id` field of some topic JSON, if it has one. */
+export function topicIdOf(source: string): string | undefined {
+	try {
+		const json: unknown = JSON.parse(source);
+		const id =
+			typeof json === 'object' && json !== null ? (json as { id?: unknown }).id : undefined;
+		return typeof id === 'string' ? id : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/** Parses topic JSON by shape only: no content, id or flow checks. Cheap enough to run often. */
+export function parseTopicShape(source: string): Topic | undefined {
+	try {
+		const parsed = draftShapeSchema.safeParse(JSON.parse(source));
+		return parsed.success ? parsed.data : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 /**
- * Validates one topic file on its own. `topic` is the parsed topic whenever the file matches
- * the topic format, even if it has id or flow errors, so a draft can still be displayed.
+ * Validates one topic file on its own. `topic` is the parsed topic whenever the file has the
+ * shape of a topic, even if it breaks content, id or flow rules, so a draft can still be shown
+ * and edited. Only an error-free topic is ready to use.
  */
 export function validateTopicFile({ file, source }: TopicFile): {
 	topic?: Topic;
@@ -109,7 +151,10 @@ export function validateTopicFile({ file, source }: TopicFile): {
 			const error = toError(issue.path, describeIssue(json, issue));
 			if (!errors.has(error.location)) errors.set(error.location, error);
 		}
-		return { errors: [...errors.values()] };
+		// A draft that only breaks content rules still has the shape of a topic, so it can
+		// be shown and edited while it's being fixed.
+		const shape = draftShapeSchema.safeParse(json);
+		return { topic: shape.success ? shape.data : undefined, errors: [...errors.values()] };
 	}
 
 	const topic = parsed.data;

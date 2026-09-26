@@ -23,14 +23,34 @@
 
 **Blocked by:** 02 — Read-only flow diagram
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `applyEdit` tests use realistic edit sequences and assert on the resulting topic. They cover:
+- [x] `applyEdit` tests use realistic edit sequences and assert on the resulting topic. They cover:
   - Topic details.
   - Branch paths: adding a path; renaming one, which relabels its connection; removing one, which removes its connection.
   - Rules: adding, updating and removing a rule.
   - Replies, ask-customer steps and hand-off steps.
-- [ ] Editing in the side panel updates the diagram immediately, and validation errors appear and clear as the draft changes.
-- [ ] Reloading the page shows the autosaved draft, and `/topics` shows `unpublished changes` for an edited published topic.
-- [ ] `not_stated` can't be removed or renamed from the panel.
-- [ ] `npm run check`, `npm run lint` and `npm test` pass.
+- [x] Editing in the side panel updates the diagram immediately, and validation errors appear and clear as the draft changes.
+- [x] Reloading the page shows the autosaved draft, and `/topics` shows `unpublished changes` for an edited published topic.
+- [x] `not_stated` can't be removed or renamed from the panel.
+- [x] `npm run check`, `npm run lint` and `npm test` pass.
+
+## Comments
+
+**2026-09-26, implementation notes:**
+
+- **`applyEdit`** (`src/lib/topic-model/edits.ts`) handles `update_topic`, `update_step`, `add_path`, `rename_path`, `update_path`, `remove_path`, `add_rule`, `update_rule` and `remove_rule`. An edit that can't apply throws an `EditError`, which the side panel shows.
+  - **Path names:** typed in plain words and turned into snake_case, e.g. "It arrived damaged!" becomes `it_arrived_damaged` (the user agreed this). A leading digit gets `path_`. Empty, reserved (`not_stated`, `other`) and duplicate names are refused, because renaming needs unique names to relabel connections.
+  - **Rule ids:** `rule_N`, numbered after the highest in use.
+- **Drafts stay editable.** `validateTopicFile` now returns the topic whenever the JSON has the shape of a topic. Content problems (empty text, 3 to 5 examples, snake_case, a one-line description, lists needing an item) are reported as errors but don't stop the draft being shown and edited. Found in review: before this, an autosaved draft with an empty rule or button couldn't be opened again.
+- **Status** compares parsed topics via `parseTopicShape`, so formatting and parser defaults such as `resolve: false` don't count as unpublished changes.
+- **Saving.** `PUT /topics/[id]/draft` stores the draft. It's capped at 512 KB, checked against `content-length` first, and must be JSON with this topic's id. Renaming a topic's id in ticket 06 therefore needs its own operation.
+- **Autosave.** The `Autosave` class in `src/lib/flow-diagram/autosave.svelte.ts` saves 0.8 s after the last change, one request at a time. It only shows "saved" once the latest change is saved, and flushes (with keepalive when the draft is small enough) when the tab is hidden or the builder closes.
+- **Per-topic state.** The page renders a `TopicBuilder` per topic (`{#key data.id}`) and a `StepEditor` per selected step, so drafts, selection and autosave never leak between topics or steps.
+- **Checked in Chrome** (hidden window, so fields were driven with dispatched events):
+  - live name and status changes;
+  - adding, renaming and refusing path names;
+  - the rules, "marks resolved" and buttons editors;
+  - persistence across reloads;
+  - a draft with an empty rule reopens editable;
+  - leaving right after an edit still saves it.

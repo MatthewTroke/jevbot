@@ -70,3 +70,91 @@ code {
 	text-decoration: underline;
 	cursor: pointer;
 }
+
+/* Form fields, shared by the builder's side-panel editors. */
+input,
+textarea,
+select {
+	font: inherit;
+	color: var(--text);
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: 0.4rem;
+	padding: 0.4rem 0.55rem;
+}
+
+textarea {
+	resize: vertical;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.editor {
+	display: grid;
+	gap: 1rem;
+}
+
+.editor label:not(.checkbox) {
+	display: grid;
+	gap: 0.3rem;
+}
+
+.editor label > span,
+.editor legend {
+	font-weight: 600;
+	font-size: 0.9rem;
+}
+
+.editor fieldset {
+	border: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.4rem;
+}
+
+.editor small {
+	color: var(--muted);
+	font-size: 0.8rem;
+}
+
+.editor .checkbox {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.editor .hint {
+	color: var(--muted);
+	font-size: 0.9rem;
+	margin: 0;
+}
+
+/* Small square button, e.g. ✕ to remove a row. */
+.icon-button {
+	flex: none;
+	width: 2rem;
+	height: 2rem;
+	border: 1px solid var(--border);
+	border-radius: 0.4rem;
+	background: var(--bg);
+	color: var(--muted);
+	cursor: pointer;
+}
+
+/* Dashed "+ Add …" button under a list. */
+.add-button {
+	justify-self: start;
+	margin-top: 0.5rem;
+	border: 1px dashed var(--border);
+	border-radius: 0.4rem;
+	background: none;
+	padding: 0.35rem 0.75rem;
+	color: var(--accent);
+	cursor: pointer;
+}
